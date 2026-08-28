@@ -1,0 +1,15 @@
+# Sanal ortamlar
+venv/
+.venv/
+env/
+
+# Python gecici dosyalari
+__pycache__/
+*.py[cod]
+
+# Editor ve isletim sistemi dosyalari
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
