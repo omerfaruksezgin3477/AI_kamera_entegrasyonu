@@ -56,6 +56,11 @@ python kamera_test_vol2.py
 
 Programdan cikmak icin kamera penceresi acikken `q` tusuna basin.
 
+Kamera uygulaması `models/sayi_siniflandirici.joblib` modelini açılışta yükler.
+Kadrajda tek el olduğunda son 8 karenin sınıf olasılıklarını ortalayarak canlı
+`1-5` tahmini üretir. En yüksek olasılık `%70` altındaysa sonucu kesin sayı
+yerine `Belirsiz` olarak gösterir. İki el algılanırsa sınıflandırma yapılmaz.
+
 ## Veri toplama
 
 Kamera uygulamasında `1-5` ile etiket seçilir, `Space` ile tek el örneği
@@ -74,6 +79,11 @@ etiketi doğru olsa bile projedeki el biçimine uymayan görseller eğitime girm
 
 İnternet veri kaynağı: [Sign Language Digits Dataset](https://github.com/ardamavi/Sign-Language-Digits-Dataset)
 (Apache-2.0 lisansı).
+
+Geleneksel `3` biçimi için ek kaynak: [Dataset of pictures of a single hand
+with different finger count](https://doi.org/10.5281/zenodo.3901659)
+(CC BY 4.0 lisansı). Bu kaynaktan yalnız `train/3` bölümü elle incelenir; kaynak
+`val` ve `test` bölümleri eğitime aktarılmaz.
 
 ## Model eğitimi
 

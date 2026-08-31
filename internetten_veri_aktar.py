@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import random
 import shutil
 import time
 from pathlib import Path
@@ -42,11 +43,11 @@ def csv_basligi():
     return baslik
 
 
-def durum_yukle():
-    gecici_yol = DURUM_YOLU.with_suffix(".json.tmp")
+def durum_yukle(durum_yolu):
+    gecici_yol = durum_yolu.with_suffix(".json.tmp")
     adaylar = [
         yol
-        for yol in (DURUM_YOLU, gecici_yol)
+        for yol in (durum_yolu, gecici_yol)
         if yol.exists() and yol.stat().st_size > 0
     ]
     if not adaylar:
@@ -68,7 +69,7 @@ def durum_yukle():
             continue
 
     if not gecerli_adaylar:
-        raise ValueError(f"Geçersiz aktarım durum dosyası: {DURUM_YOLU}")
+        raise ValueError(f"Geçersiz aktarım durum dosyası: {durum_yolu}")
 
     _, secilen_yol, durum = max(gecerli_adaylar, key=lambda aday: aday[0])
     if secilen_yol == gecici_yol:
@@ -100,18 +101,18 @@ def gecici_dosyayi_yerlestir(gecici_yol, hedef_yol):
         ) from (son_hata or hata)
 
 
-def atomik_json_yaz(durum):
-    DURUM_YOLU.parent.mkdir(parents=True, exist_ok=True)
-    gecici_yol = DURUM_YOLU.with_suffix(".json.tmp")
+def atomik_json_yaz(durum, durum_yolu):
+    durum_yolu.parent.mkdir(parents=True, exist_ok=True)
+    gecici_yol = durum_yolu.with_suffix(".json.tmp")
     with gecici_yol.open("w", encoding="utf-8") as dosya:
         json.dump(durum, dosya, ensure_ascii=False, indent=2)
-    gecici_dosyayi_yerlestir(gecici_yol, DURUM_YOLU)
+    gecici_dosyayi_yerlestir(gecici_yol, durum_yolu)
 
 
-def csv_yeniden_olustur(durum):
+def csv_yeniden_olustur(durum, cikti_yolu):
     """Kabul edilen kayıtları durum dosyasından güvenle yeniden üretir."""
-    CIKTI_YOLU.parent.mkdir(parents=True, exist_ok=True)
-    gecici_yol = CIKTI_YOLU.with_suffix(".csv.tmp")
+    cikti_yolu.parent.mkdir(parents=True, exist_ok=True)
+    gecici_yol = cikti_yolu.with_suffix(".csv.tmp")
 
     kabul_edilenler = [
         (kaynak, kayit)
@@ -126,12 +127,12 @@ def csv_yeniden_olustur(durum):
         for _, kayit in kabul_edilenler:
             yazici.writerow([kayit["etiket"], *kayit["koordinatlar"]])
 
-    gecici_dosyayi_yerlestir(gecici_yol, CIKTI_YOLU)
+    gecici_dosyayi_yerlestir(gecici_yol, cikti_yolu)
 
 
-def gorselleri_bul(veri_seti_yolu):
+def gorselleri_bul(veri_seti_yolu, etiketler):
     gorseller = []
-    for etiket in ETIKETLER:
+    for etiket in etiketler:
         etiket_yolu = veri_seti_yolu / str(etiket)
         if not etiket_yolu.is_dir():
             raise FileNotFoundError(f"Etiket klasörü bulunamadı: {etiket_yolu}")
@@ -177,7 +178,7 @@ def inceleme_ekrani_hazirla(gorsel, el_noktalari, etiket, sira, toplam, kaynak):
     return ekran
 
 
-def ozet_yaz(durum):
+def ozet_yaz(durum, cikti_yolu):
     kayitlar = durum["kayitlar"].values()
     kabul = sum(kayit["durum"] == "kabul" for kayit in kayitlar)
     ret = sum(kayit["durum"] == "ret" for kayit in kayitlar)
@@ -188,7 +189,7 @@ def ozet_yaz(durum):
         f"Durum: {kabul} kabul, {ret} ret, "
         f"{bulunamadi} el bulunamadı."
     )
-    print(f"CSV: {CIKTI_YOLU}")
+    print(f"CSV: {cikti_yolu}")
 
 
 def main():
@@ -202,6 +203,36 @@ def main():
         help="İçinde 1,2,3,4,5 klasörleri bulunan Dataset yolu.",
     )
     ayrıştırıcı.add_argument(
+        "--etiketler",
+        type=int,
+        choices=ETIKETLER,
+        nargs="+",
+        default=list(ETIKETLER),
+        help="İncelenecek etiketler. Örnek: --etiketler 3",
+    )
+    ayrıştırıcı.add_argument(
+        "--cikti",
+        type=Path,
+        default=CIKTI_YOLU,
+        help="Kabul edilen örneklerin yazılacağı CSV yolu.",
+    )
+    ayrıştırıcı.add_argument(
+        "--durum",
+        type=Path,
+        default=DURUM_YOLU,
+        help="Kabul/ret ilerlemesinin yazılacağı JSON yolu.",
+    )
+    ayrıştırıcı.add_argument(
+        "--hedef-kabul",
+        type=int,
+        help="Bu sayıda kabul edilen örneğe ulaşınca durur.",
+    )
+    ayrıştırıcı.add_argument(
+        "--karistir",
+        action="store_true",
+        help="Görselleri sabit tohumla karışık sırada gösterir.",
+    )
+    ayrıştırıcı.add_argument(
         "--reddedilenleri-tekrar-incele",
         type=int,
         choices=ETIKETLER,
@@ -210,13 +241,17 @@ def main():
     )
     secenekler = ayrıştırıcı.parse_args()
     veri_seti_yolu = secenekler.dataset.expanduser().resolve()
+    cikti_yolu = secenekler.cikti.expanduser().resolve()
+    durum_yolu = secenekler.durum.expanduser().resolve()
+    if secenekler.hedef_kabul is not None and secenekler.hedef_kabul <= 0:
+        ayrıştırıcı.error("--hedef-kabul sıfırdan büyük olmalıdır.")
 
     if not MODEL_YOLU.is_file():
         raise FileNotFoundError(f"MediaPipe modeli bulunamadı: {MODEL_YOLU}")
     if not veri_seti_yolu.is_dir():
         raise FileNotFoundError(f"İnternet veri seti bulunamadı: {veri_seti_yolu}")
 
-    durum = durum_yukle()
+    durum = durum_yukle(durum_yolu)
     durum["veri_seti"] = str(veri_seti_yolu)
     tekrar_etiketi = secenekler.reddedilenleri_tekrar_incele
     if tekrar_etiketi is not None:
@@ -228,13 +263,15 @@ def main():
         ]
         for anahtar in tekrar_anahtarlari:
             del durum["kayitlar"][anahtar]
-        atomik_json_yaz(durum)
+        atomik_json_yaz(durum, durum_yolu)
         print(
             f"Etiket {tekrar_etiketi}: {len(tekrar_anahtarlari)} "
             "reddedilmiş görsel yeniden incelemeye açıldı."
         )
 
-    gorseller = gorselleri_bul(veri_seti_yolu)
+    gorseller = gorselleri_bul(veri_seti_yolu, secenekler.etiketler)
+    if secenekler.karistir:
+        random.Random(42).shuffle(gorseller)
     bekleyenler = [
         (etiket, yol)
         for etiket, yol in gorseller
@@ -244,9 +281,19 @@ def main():
     print(f"Toplam görsel: {len(gorseller)}")
     print(f"Daha önce incelenmiş: {len(gorseller) - len(bekleyenler)}")
     print(f"Bekleyen: {len(bekleyenler)}")
+    kabul_sayisi = sum(
+        kayit["durum"] == "kabul" for kayit in durum["kayitlar"].values()
+    )
+    if (
+        secenekler.hedef_kabul is not None
+        and kabul_sayisi >= secenekler.hedef_kabul
+    ):
+        csv_yeniden_olustur(durum, cikti_yolu)
+        ozet_yaz(durum, cikti_yolu)
+        return
     if not bekleyenler:
-        csv_yeniden_olustur(durum)
-        ozet_yaz(durum)
+        csv_yeniden_olustur(durum, cikti_yolu)
+        ozet_yaz(durum, cikti_yolu)
         return
 
     ayarlar = mp.tasks.vision.HandLandmarkerOptions(
@@ -268,7 +315,7 @@ def main():
                         "etiket": etiket,
                         "neden": "görsel okunamadı",
                     }
-                    atomik_json_yaz(durum)
+                    atomik_json_yaz(durum, durum_yolu)
                     continue
 
                 buyutulmus = cv2.resize(
@@ -287,7 +334,7 @@ def main():
                         "etiket": etiket,
                         "neden": "MediaPipe tek el bulamadı",
                     }
-                    atomik_json_yaz(durum)
+                    atomik_json_yaz(durum, durum_yolu)
                     continue
 
                 el_noktalari = sonuc.hand_landmarks[0]
@@ -298,7 +345,7 @@ def main():
                         "etiket": etiket,
                         "neden": "koordinatlar normalize edilemedi",
                     }
-                    atomik_json_yaz(durum)
+                    atomik_json_yaz(durum, durum_yolu)
                     continue
 
                 ekran = inceleme_ekrani_hazirla(
@@ -327,17 +374,29 @@ def main():
                         }
                         break
                     if tus in (ord("q"), ord("Q")):
-                        atomik_json_yaz(durum)
-                        csv_yeniden_olustur(durum)
-                        ozet_yaz(durum)
+                        atomik_json_yaz(durum, durum_yolu)
+                        csv_yeniden_olustur(durum, cikti_yolu)
+                        ozet_yaz(durum, cikti_yolu)
                         return
 
-                atomik_json_yaz(durum)
+                atomik_json_yaz(durum, durum_yolu)
+                kabul_sayisi = sum(
+                    kayit["durum"] == "kabul"
+                    for kayit in durum["kayitlar"].values()
+                )
+                if (
+                    secenekler.hedef_kabul is not None
+                    and kabul_sayisi >= secenekler.hedef_kabul
+                ):
+                    print(
+                        f"Hedefe ulaşıldı: {kabul_sayisi} kabul edilmiş örnek."
+                    )
+                    break
     finally:
         cv2.destroyAllWindows()
 
-    csv_yeniden_olustur(durum)
-    ozet_yaz(durum)
+    csv_yeniden_olustur(durum, cikti_yolu)
+    ozet_yaz(durum, cikti_yolu)
 
 
 if __name__ == "__main__":

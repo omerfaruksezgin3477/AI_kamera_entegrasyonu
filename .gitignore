@@ -14,5 +14,5 @@ __pycache__/
 Thumbs.db
 
 # İnternet veri incelemesinin makineye özel devam/kurtarma dosyaları
-veri/internet_aktarim_durumu.json
-veri/internet_aktarim_durumu.json.tmp
+veri/internet_*_durum.json
+veri/internet_*_durum.json.tmp
