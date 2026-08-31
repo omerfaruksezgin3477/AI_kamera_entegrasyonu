@@ -13,3 +13,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+# İnternet veri incelemesinin makineye özel devam/kurtarma dosyaları
+veri/internet_*_durum.json
+veri/internet_*_durum.json.tmp

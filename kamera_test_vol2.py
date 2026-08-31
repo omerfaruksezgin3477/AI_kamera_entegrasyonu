@@ -1,14 +1,21 @@
 from pathlib import Path
+from collections import deque
 import csv
 import math
 import time
 
 import cv2
-import mediapipe as mp
+import joblib
+import mediapipe as mp  # Görüntüdeki eli tespit ediyor./  Hazır Hand Landmarker modelini çalıştırıyor./ MediaPipe tek elindeki 21 noktanin iskelet baglantilarini okur.
 
 
 MODEL_YOLU = Path(__file__).parent / "models" / "hand_landmarker.task"
+SINIFLANDIRICI_YOLU = (
+    Path(__file__).parent / "models" / "sayi_siniflandirici.joblib"
+)
 VERI_YOLU = Path(__file__).parent / "veri" / "el_verileri.csv"
+MINIMUM_GUVEN = 0.70
+TAHMIN_PENCERESI = 8
 
 # MediaPipe elindeki 21 noktanin iskelet baglantilari.
 EL_BAGLANTILARI = (
@@ -104,15 +111,62 @@ def ornek_kaydet(etiket, el_noktalari):
     return True
 
 
+def siniflandiriciyi_yukle():
+    if not SINIFLANDIRICI_YOLU.is_file():
+        raise FileNotFoundError(
+            f"Sayi siniflandirma modeli bulunamadi: {SINIFLANDIRICI_YOLU}"
+        )
+
+    paket = joblib.load(SINIFLANDIRICI_YOLU)
+    if not isinstance(paket, dict) or "model" not in paket:
+        raise ValueError("Siniflandirma modeli gecersiz bir yapida.")
+
+    siniflandirici = paket["model"]
+    metadata = paket.get("metadata", {})
+    if metadata.get("ozellik_sayisi") != 63:
+        raise ValueError("Siniflandirma modeli 63 el koordinati beklemiyor.")
+    if not hasattr(siniflandirici, "predict_proba"):
+        raise ValueError("Siniflandirma modeli guven olasiligi uretmiyor.")
+
+    return siniflandirici, metadata
+
+
+def canli_tahmin_yap(siniflandirici, olasilik_gecmisi, el_noktalari):
+    koordinatlar = el_noktalarini_normalize_et(el_noktalari)
+    if koordinatlar is None:
+        return None
+
+    olasiliklar = siniflandirici.predict_proba([koordinatlar])[0]
+    olasilik_gecmisi.append(olasiliklar)
+    ortalama_olasiliklar = [
+        sum(kare_olasiliklari[i] for kare_olasiliklari in olasilik_gecmisi)
+        / len(olasilik_gecmisi)
+        for i in range(len(olasiliklar))
+    ]
+    en_iyi_index = max(
+        range(len(ortalama_olasiliklar)),
+        key=ortalama_olasiliklar.__getitem__,
+    )
+    tahmin = int(siniflandirici.classes_[en_iyi_index])
+    guven = float(ortalama_olasiliklar[en_iyi_index])
+    return tahmin, guven
+
+
 def main():
     if not MODEL_YOLU.is_file():
         raise FileNotFoundError(
             f"El takip modeli bulunamadi: {MODEL_YOLU}"
         )
 
+    siniflandirici, model_metadata = siniflandiriciyi_yukle()
+    print(
+        f"Siniflandirici yuklendi: {model_metadata.get('model_adi', 'bilinmiyor')}"
+    )
+
     veri_basligini_hazirla()
     sayaclar = etiket_sayaclarini_oku()
     aktif_etiket = None
+    olasilik_gecmisi = deque(maxlen=TAHMIN_PENCERESI)
 
     ayarlar = mp.tasks.vision.HandLandmarkerOptions(
         base_options=mp.tasks.BaseOptions(
@@ -155,6 +209,36 @@ def main():
                 for el_noktalari in sonuc.hand_landmarks:
                     el_iskeletini_ciz(kare, el_noktalari)
 
+                if len(sonuc.hand_landmarks) == 1:
+                    tahmin_sonucu = canli_tahmin_yap(
+                        siniflandirici,
+                        olasilik_gecmisi,
+                        sonuc.hand_landmarks[0],
+                    )
+                    if tahmin_sonucu is None:
+                        tahmin_metni = "Tahmin: hesaplanamadi"
+                        tahmin_rengi = (0, 0, 255)
+                    else:
+                        tahmin, guven = tahmin_sonucu
+                        if guven >= MINIMUM_GUVEN:
+                            tahmin_metni = (
+                                f"Tahmin: {tahmin} | Guven: %{guven * 100:.0f}"
+                            )
+                            tahmin_rengi = (0, 255, 0)
+                        else:
+                            tahmin_metni = (
+                                f"Tahmin: Belirsiz ({tahmin}, %{guven * 100:.0f})"
+                            )
+                            tahmin_rengi = (0, 165, 255)
+                elif len(sonuc.hand_landmarks) > 1:
+                    olasilik_gecmisi.clear()
+                    tahmin_metni = "Tahmin: yalnizca bir el gosterin"
+                    tahmin_rengi = (0, 165, 255)
+                else:
+                    olasilik_gecmisi.clear()
+                    tahmin_metni = "Tahmin: el bekleniyor"
+                    tahmin_rengi = (200, 200, 200)
+
                 etiket_metni = (
                     str(aktif_etiket) if aktif_etiket is not None else "secilmedi"
                 )
@@ -175,6 +259,15 @@ def main():
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.6,
                     (255, 255, 255),
+                    2,
+                )
+                cv2.putText(
+                    kare,
+                    tahmin_metni,
+                    (15, 90),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    tahmin_rengi,
                     2,
                 )
 
