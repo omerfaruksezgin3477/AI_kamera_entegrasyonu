@@ -1,4 +1,6 @@
 from pathlib import Path
+import csv
+import math
 import time
 
 import cv2
@@ -6,6 +8,7 @@ import mediapipe as mp
 
 
 MODEL_YOLU = Path(__file__).parent / "models" / "hand_landmarker.task"
+VERI_YOLU = Path(__file__).parent / "veri" / "el_verileri.csv"
 
 # MediaPipe elindeki 21 noktanin iskelet baglantilari.
 EL_BAGLANTILARI = (
@@ -37,11 +40,79 @@ def el_iskeletini_ciz(kare, el_noktalari):
         cv2.circle(kare, (x, y), 4, (0, 0, 255), -1)
 
 
+def el_noktalarini_normalize_et(el_noktalari):
+    """Eli bilege gore ortalar ve boyutunu standartlastirir."""
+    bilek = el_noktalari[0]
+    goreli_noktalar = [
+        (nokta.x - bilek.x, nokta.y - bilek.y, nokta.z - bilek.z)
+        for nokta in el_noktalari
+    ]
+
+    olcek = max(
+        math.sqrt(x * x + y * y + z * z)
+        for x, y, z in goreli_noktalar
+    )
+    if olcek == 0:
+        return None
+
+    return [
+        koordinat / olcek
+        for nokta in goreli_noktalar
+        for koordinat in nokta
+    ]
+
+
+def veri_basligini_hazirla():
+    VERI_YOLU.parent.mkdir(parents=True, exist_ok=True)
+    if VERI_YOLU.exists() and VERI_YOLU.stat().st_size > 0:
+        return
+
+    baslik = ["etiket"]
+    for nokta_no in range(21):
+        baslik.extend(
+            [f"x{nokta_no}", f"y{nokta_no}", f"z{nokta_no}"]
+        )
+
+    with VERI_YOLU.open("w", newline="", encoding="utf-8") as dosya:
+        csv.writer(dosya).writerow(baslik)
+
+
+def etiket_sayaclarini_oku():
+    sayaclar = {etiket: 0 for etiket in range(1, 6)}
+    if not VERI_YOLU.exists():
+        return sayaclar
+
+    with VERI_YOLU.open("r", newline="", encoding="utf-8") as dosya:
+        for satir in csv.DictReader(dosya):
+            try:
+                etiket = int(satir["etiket"])
+                if etiket in sayaclar:
+                    sayaclar[etiket] += 1
+            except (KeyError, TypeError, ValueError):
+                continue
+
+    return sayaclar
+
+
+def ornek_kaydet(etiket, el_noktalari):
+    koordinatlar = el_noktalarini_normalize_et(el_noktalari)
+    if koordinatlar is None:
+        return False
+
+    with VERI_YOLU.open("a", newline="", encoding="utf-8") as dosya:
+        csv.writer(dosya).writerow([etiket, *koordinatlar])
+    return True
+
+
 def main():
     if not MODEL_YOLU.is_file():
         raise FileNotFoundError(
             f"El takip modeli bulunamadi: {MODEL_YOLU}"
         )
+
+    veri_basligini_hazirla()
+    sayaclar = etiket_sayaclarini_oku()
+    aktif_etiket = None
 
     ayarlar = mp.tasks.vision.HandLandmarkerOptions(
         base_options=mp.tasks.BaseOptions(
@@ -49,16 +120,16 @@ def main():
         ),
         running_mode=mp.tasks.vision.RunningMode.VIDEO,
         num_hands=2,
-        min_hand_detection_confidence=0.5,
-        min_hand_presence_confidence=0.5,
-        min_tracking_confidence=0.5,
+        min_hand_detection_confidence=0.7,
+        min_hand_presence_confidence=0.7,
+        min_tracking_confidence=0.6,
     )
 
     kamera = cv2.VideoCapture(0)
     if not kamera.isOpened():
         raise RuntimeError("Kamera acilamadi.")
 
-    print("Kamera acildi. Programdan cikmak icin 'q' tusuna basin.")
+    print("1-5: etiketi sec | SPACE: bir ornek kaydet | q: cikis")
     baslangic_zamani = time.perf_counter()
 
     try:
@@ -84,8 +155,51 @@ def main():
                 for el_noktalari in sonuc.hand_landmarks:
                     el_iskeletini_ciz(kare, el_noktalari)
 
+                etiket_metni = (
+                    str(aktif_etiket) if aktif_etiket is not None else "secilmedi"
+                )
+                adet = sayaclar.get(aktif_etiket, 0)
+                cv2.putText(
+                    kare,
+                    f"Etiket: {etiket_metni} | Kayit: {adet}/300",
+                    (15, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (0, 255, 255),
+                    2,
+                )
+                cv2.putText(
+                    kare,
+                    "1-5: etiket | SPACE: kaydet | Q: cikis",
+                    (15, 60),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (255, 255, 255),
+                    2,
+                )
+
                 cv2.imshow("El Takibi", kare)
-                if cv2.waitKey(1) & 0xFF == ord("q"):
+                tus = cv2.waitKey(1) & 0xFF
+
+                if ord("1") <= tus <= ord("5"):
+                    aktif_etiket = int(chr(tus))
+                    print(f"Aktif etiket: {aktif_etiket}")
+                elif tus == ord(" "):
+                    if aktif_etiket is None:
+                        print("Once 1-5 tuslarindan bir etiket secin.")
+                    elif len(sonuc.hand_landmarks) == 0:
+                        print("Kayit yapilmadi: goruntude el bulunamadi.")
+                    elif len(sonuc.hand_landmarks) > 1:
+                        print("Kayit yapilmadi: kadrajda yalnizca bir el olmali.")
+                    elif ornek_kaydet(
+                        aktif_etiket, sonuc.hand_landmarks[0]
+                    ):
+                        sayaclar[aktif_etiket] += 1
+                        print(
+                            f"Etiket {aktif_etiket}: "
+                            f"{sayaclar[aktif_etiket]}/300 kaydedildi."
+                        )
+                elif tus == ord("q"):
                     break
     finally:
         kamera.release()
