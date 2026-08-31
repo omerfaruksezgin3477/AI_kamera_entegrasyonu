@@ -1,0 +1,235 @@
+{
+  "model_adi": "Random Forest",
+  "olusturulma_zamani_utc": "2026-08-31T10:51:30.058846+00:00",
+  "etiketler": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "ozellikler": [
+    "x0",
+    "y0",
+    "z0",
+    "x1",
+    "y1",
+    "z1",
+    "x2",
+    "y2",
+    "z2",
+    "x3",
+    "y3",
+    "z3",
+    "x4",
+    "y4",
+    "z4",
+    "x5",
+    "y5",
+    "z5",
+    "x6",
+    "y6",
+    "z6",
+    "x7",
+    "y7",
+    "z7",
+    "x8",
+    "y8",
+    "z8",
+    "x9",
+    "y9",
+    "z9",
+    "x10",
+    "y10",
+    "z10",
+    "x11",
+    "y11",
+    "z11",
+    "x12",
+    "y12",
+    "z12",
+    "x13",
+    "y13",
+    "z13",
+    "x14",
+    "y14",
+    "z14",
+    "x15",
+    "y15",
+    "z15",
+    "x16",
+    "y16",
+    "z16",
+    "x17",
+    "y17",
+    "z17",
+    "x18",
+    "y18",
+    "z18",
+    "x19",
+    "y19",
+    "z19",
+    "x20",
+    "y20",
+    "z20"
+  ],
+  "ozellik_sayisi": 63,
+  "rastgelelik_tohumu": 42,
+  "ornek_sayisi": 830,
+  "silinen_tam_tekrar": 0,
+  "kaynak_sayilari": {
+    "el_verileri.csv": 102,
+    "internet_el_verileri.csv": 728
+  },
+  "tum_veri_dagilimi": {
+    "1": 178,
+    "2": 108,
+    "3": 181,
+    "4": 153,
+    "5": 210
+  },
+  "bolum_dagilimlari": {
+    "egitim": {
+      "1": 124,
+      "2": 76,
+      "3": 127,
+      "4": 107,
+      "5": 146
+    },
+    "dogrulama": {
+      "1": 27,
+      "2": 16,
+      "3": 27,
+      "4": 23,
+      "5": 32
+    },
+    "test": {
+      "1": 27,
+      "2": 16,
+      "3": 27,
+      "4": 23,
+      "5": 32
+    }
+  },
+  "dogrulama_sonuclari": {
+    "KNN": {
+      "dogruluk": 0.96,
+      "dengeli_dogruluk": 0.9463969404186795,
+      "makro_f1": 0.9532378688816159
+    },
+    "SVM-RBF": {
+      "dogruluk": 0.968,
+      "dengeli_dogruluk": 0.9550925925925926,
+      "makro_f1": 0.9607551249835158
+    },
+    "Random Forest": {
+      "dogruluk": 0.968,
+      "dengeli_dogruluk": 0.9588969404186795,
+      "makro_f1": 0.961465178632079
+    }
+  },
+  "test_metrikleri": {
+    "dogruluk": 0.96,
+    "dengeli_dogruluk": 0.9615438808373591,
+    "makro_f1": 0.9585849444672974
+  },
+  "test_siniflandirma_raporu": {
+    "1": {
+      "precision": 0.9642857142857143,
+      "recall": 1.0,
+      "f1-score": 0.9818181818181818,
+      "support": 27.0
+    },
+    "2": {
+      "precision": 0.8888888888888888,
+      "recall": 1.0,
+      "f1-score": 0.9411764705882353,
+      "support": 16.0
+    },
+    "3": {
+      "precision": 1.0,
+      "recall": 0.9259259259259259,
+      "f1-score": 0.9615384615384616,
+      "support": 27.0
+    },
+    "4": {
+      "precision": 1.0,
+      "recall": 0.9130434782608695,
+      "f1-score": 0.9545454545454546,
+      "support": 23.0
+    },
+    "5": {
+      "precision": 0.9393939393939394,
+      "recall": 0.96875,
+      "f1-score": 0.9538461538461539,
+      "support": 32.0
+    },
+    "accuracy": 0.96,
+    "macro avg": {
+      "precision": 0.9585137085137084,
+      "recall": 0.9615438808373591,
+      "f1-score": 0.9585849444672974,
+      "support": 125.0
+    },
+    "weighted avg": {
+      "precision": 0.9625483405483406,
+      "recall": 0.96,
+      "f1-score": 0.9600566022213082,
+      "support": 125.0
+    }
+  },
+  "karisiklik_matrisi": [
+    [
+      27,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      16,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      1,
+      25,
+      0,
+      1
+    ],
+    [
+      0,
+      1,
+      0,
+      21,
+      1
+    ],
+    [
+      1,
+      0,
+      0,
+      0,
+      31
+    ]
+  ],
+  "veri_dosyalari": {
+    "veri\\el_verileri.csv": {
+      "sha256": "88ca1539032693091f0dd487b119f574cf62e04b2d5b8e949f2fe172785ed068",
+      "satir": 102
+    },
+    "veri\\internet_el_verileri.csv": {
+      "sha256": "9f782adf2b4fd4495d20f78237624892e33be7498b2199ab1ddc5505ba090f60",
+      "satir": 728
+    }
+  },
+  "ortam": {
+    "python": "3.13.5",
+    "numpy": "2.5.2",
+    "scikit_learn": "1.9.0",
+    "joblib": "1.5.3"
+  },
+  "uyari": "Rastgele bölme benzer kamera karelerini farklı kümelere dağıtabilir; test sonucu gerçek kullanıcı performansını olduğundan yüksek gösterebilir."
+}

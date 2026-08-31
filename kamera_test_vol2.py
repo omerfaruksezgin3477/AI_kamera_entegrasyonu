@@ -4,7 +4,8 @@ import math
 import time
 
 import cv2
-import mediapipe as mp
+import joblib
+import mediapipe as mp  # Görüntüdeki eli tespit ediyor./  Hazır Hand Landmarker modelini çalıştırıyor./ MediaPipe tek elindeki 21 noktanin iskelet baglantilarini okur.
 
 
 MODEL_YOLU = Path(__file__).parent / "models" / "hand_landmarker.task"
